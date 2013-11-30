@@ -1,0 +1,7 @@
+(^|/)target/
+~$
+^\.ensime
+^seed.*$
+^.+\.wallet$
+^externalMaster[\d]\..*$
+trash
