@@ -14,7 +14,8 @@ HD keys are so called because they exist as nodes within a key
 hierarchy, the root node of which is derived from your (hopefully)
 secret _master seed_, consisting of (hopefully) random bits of data.
 This program does _not_ generate a master seed for you, rather you
-must already have your master seed, and it must be encrypted with [AES
+must already have your master seed, and it must be encrypted with a
+symmetric cipher that `gpg` supports, such as [AES
 256](http://en.wikipedia.org/wiki/Advanced_Encryption_Standard).
 
 From the _Master Node_ are derived numbered accounts, each with a
@@ -43,10 +44,11 @@ Generate Your Master Seed
 
 You can create your master seed however you want, and you have many
 options.  The only requirement for using it with this program is that
-it be encrypted with
-[Advanced Encryption Standard](](http://en.wikipedia.org/wiki/Advanced_Encryption_Standard))
-using a 256 bit key.  Here is just one suggestion for how to do it.
-This may or may not work depending on your operating system:
+it be symmetrically encrypted with a cipher supported by `gpg`, such
+as [Advanced Encryption
+Standard](](http://en.wikipedia.org/wiki/Advanced_Encryption_Standard)).
+Here is just one suggestion for how to do it.  This may or may not
+work depending on your operating system:
 
     dd if=/dev/random count=1 bs=32 | gpg --symmetric --cipher-algo AES256 --output seed.aes
 
@@ -81,32 +83,55 @@ What to do with the File Pair
 
 A public extended key can be deserialized from the generated file pair
 using the [bitcoinj](https://code.google.com/p/bitcoinj/) library like
-this:
+this (in Scala):
 
-    val deserializedPubKey: DeterministicKey =
+    val rootKey: DeterministicKey =
 	  HDKeyDerivation.createMasterPubKeyFromBytes(pubKeyBytes,chainCode)
 
-Then the children of this public extended key will be the addresses
-you can share with others:
+Then construct a new hierarchy rooted at the deserialized key:
 
-    val ecKey: ECKey = childPubKey.toECKey
+    val hierarchy = new DeterministicHierarchy(rootKey)
+
+Then you can use the `deriveChild` method to obtain extended keys in the
+chain:
+
+    val emptyPath        = List[ChildNumber]() // path to the parent
+	val notRelative      = false               // whether the path is relative to the root path
+	val dontCreateParent = false               // whether to create the parent corresponding to path
+    val childKey: DeterministicKey = hierarchy.deriveChild (
+	                                   emptyPath,
+				                       notRelative,
+				                       dontCreateParent,
+				                       new ChildNumber(childNumber: Int)
+                                     )
+
+Alternatively, you can use the static `HDKeyDerivation.deriveChildKey` method:
+
+	val childKey: DeterministicKey =
+	  HDKeyDerivation.deriveChildKey(rootKey, cn: ChildNumber)
+
+Then use `toECKey` and `toAddress` to get the regular Bitcoin key and
+address from each extended key:
+
+    val newAddress: Address = childKey.toECKey.toAddress(params: NetworkParameters)
+
 
 More About the _Master Seed_
 ----------------------------
 
 When you run this program, your encrypted seed data can either be in a
 file, or else passed as the sole command-line argument.  If it's in a
-file, you can specify the name of the file using the `--seedfile` or `-s`
-command-line option, or simply name the file `seed.aes` where this
-program will look by default.  If you wish to pass the seed data on
-the command line (and please be aware of the security implication of
-doing so), then it must be encoded in
+file, you can specify the name of the file using the `--seedfile` or
+`-s` command-line option, or simply name the file `seed.aes` where
+this program will look by default.  If you wish to pass the encrypted
+seed data on the command line (and please be aware of the security
+implication of doing so), then it must be encoded in
 [Crockford Base32](http://www.crockford.com/wrmg/base32.html) format,
 from which whitespace will be stripped before decoding.
 
 If your run this program and provide the seed data in a file, then
-this program will encode them using Crockford base-32 encoding and
-display the result for your future reference.
+this program will display the Crockford base-32 encoding for your
+future reference.
 
 Building This Application
 -------------------------
@@ -126,10 +151,10 @@ file-pair for account #0, then run with no command-line options:
 
     target/universal/stage/bin/hdkeygen
 
-If you want to generate file-pars for account numbers 3, 4 and 5
+If you want to generate file-pars for account numbers 3 and 4
 (omitting the path of the executable):
 
-    hgkeygen --account 3 --count 3
+    hgkeygen --account 3 --count 2
 
 There are other command-line options.  Use `--help` for details.
 

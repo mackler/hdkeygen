@@ -71,10 +71,10 @@ object Main {
       null
     } else getSeed(seedFile, verbose, debug)
 
-    val masterPrivateKey = HDKeyDerivation.createMasterPrivateKey(seed)
+    val masterPrivateKey: DeterministicKey = HDKeyDerivation.createMasterPrivateKey(seed)
     if(debug) dumpKey(masterPrivateKey, "Master Node:")
-    if(verbose) println(s"Master node ${masterPrivateKey.getPath
-			} has id ${Base58.encode(masterPrivateKey.getIdentifier)}")
+    if(verbose) println(s"Master node ${ masterPrivateKey.getPath
+			} has id ${ Base58.encode(masterPrivateKey.getIdentifier) }")
 
     val privHier = new DeterministicHierarchy(masterPrivateKey)
 
@@ -83,11 +83,11 @@ object Main {
       val path = ImmutableList.of(new ChildNumber(childNum, true))
 
       // For each account, child 0 is the external address chain, 1 the internal
-      val externChainPriv = privHier.deriveChild(
+      val externChainPriv: DeterministicKey = privHier.deriveChild(
 	path,
 	NOT_RELATIVE,
 	CREATE_PARENT,
-	new ChildNumber(0, true)
+	new ChildNumber(EXTERNAL, PRIVATE)
       )
       if (debug) dumpKey(
 	externChainPriv,
@@ -109,11 +109,10 @@ object Main {
 
     }
 
-
   }
 
   /** Read and decrypt an existing seed file, returning the unencrypted seed data */
-  private def getSeed(file: File, verbose: Boolean, debug: Boolean): Array[Byte] = {
+  def getSeed(file: File, verbose: Boolean, debug: Boolean): Array[Byte] = {
     if (verbose) println(s"reading existing seed file ${file.getName}")
 
     try {
@@ -212,5 +211,7 @@ object Main {
   private final val NOT_RELATIVE = false
   private final val CREATE_PARENT = true
   private final val DONT_CREATE_PARENT = false
+  private final val EXTERNAL = 0
+  private final val INTERNAL = 1
 
 }
