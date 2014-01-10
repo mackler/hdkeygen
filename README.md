@@ -26,7 +26,6 @@ that are used are in one of these two keypair chains.  Addresses from
 external chains are used to communicate publicly, _e.g._, for
 receiving payments from other people, and addresses from the internal
 chains are used, _e.g._, for receiving change when you create spends.
-This program generates only the master keys for external chains.
 
 HD keys are known as _extended keys_ because they contain all the data
 involved in a regular bitcoin EC key, plus some more data that is
@@ -80,7 +79,7 @@ default.
 Another way is to apply the SHA 256 hash function to a file of random
 data:
 
-    openssl dgst -sha256 -binary /var/log/messages | gpg --symmetric --cipher-algo AES256 --output seed.aes
+    openssl dgst -sha256 -binary /var/log/httpd.access | gpg --symmetric --cipher-algo AES256 --output seed.aes
 
 For more details on master seeds, see the
 [BIP32 document](https://en.bitcoin.it/wiki/BIP_0032#Master_key_generation).
