@@ -15,11 +15,11 @@ object Main {
   final val GPG_EXECUTABLE = "/usr/bin/gpg"
 
   case class Config(
-    account: Int = 0,
-    count: Int = 1,
-    seedFile: File = new File("seed.aes"),
+    firstAccount: Int     = 0,
+    count: Int       = 1,
+    seedFile: File   = new File("seed.aes"),
     verbose: Boolean = false,
-    debug: Boolean = false,
+    debug: Boolean   = false,
     seedData: String = ""
   )
 
@@ -28,10 +28,11 @@ object Main {
   final val SEED_COMMAND =
     "  dd if=/dev/random count=1 bs=32 | gpg --symmetric --cipher-algo AES256 --output seed.aes"
 
+  // for parsing command-line sitches and options:
   val parser = new scopt.OptionParser[Config](BuildInfo.name) {
     head("Hierarchical determinstic wallet key generator", BuildInfo.version)
     opt[Int]('a', "account") action { (x, c) =>
-      c.copy(account = x) } text("Account number of the first key (starts at 0)")
+      c.copy(firstAccount = x) } text("Account number of the first key (starts at 0)")
     opt[Int]('c', "count") action { (x, c) =>
       c.copy(count = x) } text("The number of keys to generate (default 1)")
     opt[File]('s', "seedfile") valueName("<file>") action { (x, c) =>
@@ -49,11 +50,11 @@ object Main {
   def main(args: Array[String]) {
 
     // parser.parse returns Option[C]
-    val(account,count,seedFile,seedData,verbose,debug) =
+    val(firstAccount,count,seedFile,seedData,verbose,debug) =
     parser.parse(args, Config()) map { c =>
-      (c.account, c.count, c.seedFile, c.seedData, c.verbose, c.debug)
+      (c.firstAccount, c.count, c.seedFile, c.seedData, c.verbose, c.debug)
     } getOrElse {
-      // arguments are bad, error message will have been displayed
+      // arguments are bad; error message will have been displayed
       sys.exit(1)
     }
 
@@ -71,7 +72,8 @@ object Main {
       null
     } else getSeed(seedFile, verbose, debug)
 
-    val masterPrivateKey: DeterministicKey = HDKeyDerivation.createMasterPrivateKey(seed)
+    val masterPrivateKey: DeterministicKey =
+      HDKeyDerivation createMasterPrivateKey seed
     if(debug) dumpKey(masterPrivateKey, "Master Node:")
     if(verbose) println(s"Master node ${ masterPrivateKey.getPath
 			} has id ${ Base58.encode(masterPrivateKey.getIdentifier) }")
@@ -79,33 +81,49 @@ object Main {
     val privHier = new DeterministicHierarchy(masterPrivateKey)
 
     // Account-numbers come from the command-line option, or defaults to 1
-    (account to ( account + (count - 1) ) ) foreach { childNum =>
-      val path = ImmutableList.of(new ChildNumber(childNum, true))
-
-      // For each account, child 0 is the external address chain, 1 the internal
-      val externChainPriv: DeterministicKey = privHier.deriveChild(
-	path,
+    (firstAccount to ( firstAccount + (count - 1) ) ) foreach { accountNum =>
+      val accountKey: DeterministicKey = privHier.deriveChild(
+	EMPTY_PATH,
 	NOT_RELATIVE,
 	CREATE_PARENT,
-	new ChildNumber(EXTERNAL, PRIVATE)
+	new ChildNumber(accountNum, PRIVATE_DERIVATION)
       )
+
+      val externChainPriv: DeterministicKey = privHier.deriveChild(
+	accountKey.getChildNumberPath,
+	NOT_RELATIVE,
+	CREATE_PARENT,
+	new ChildNumber(EXTERNAL_CHAIN, PRIVATE_DERIVATION)
+      )
+
       if (debug) dumpKey(
 	externChainPriv,
 	"externChainPriv: deriveNextChild(empty_path,relative,dontCreate,private)"
       )
 
-      // This is the extended public key the web server will have:
+      // This is the external chain public key data the web server will have:
       val externChainPub = externChainPriv.getPubOnly
 
-      // serialize the web server's hierarchy root and save so it can be sent to the web server
-      val keyFilename = s"externalMaster$childNum.publicKey"
-      val chainFilename = s"externalMaster$childNum.chainCode"
-      writeFile(externChainPub.getPubKeyBytes, keyFilename)
-      writeFile(externChainPub.getChainCode, chainFilename)
-      println(s"Wrote files for account $childNum key path ${externChainPub.getPath
-	      }; id is ${Base58.encode(externChainPub.getIdentifier)}")
-      println("  " + keyFilename)
-      println("  " + chainFilename)
+      /* Everything generated, now write the files */
+
+      val accountPrivKeyFilename         = s"account$accountNum.privateKey"
+      val accountChaincodeFilename       = s"account$accountNum.chaincode"
+      val externalChainPubKeyFilename    = s"externalChain$accountNum.publicKey"
+      val externalChainChaincodeFilename = s"externalChain$accountNum.chaincode"
+
+      println(s"Writing files for account $accountNum; id is ${
+	Base58.encode(accountKey.getIdentifier)}")
+
+      writeEncryptedFile(accountKey.getPrivKeyBytes, accountPrivKeyFilename)
+      println("  " + accountPrivKeyFilename)
+      writeFile(accountKey.getChainCode, accountChaincodeFilename)
+      println("  " + accountChaincodeFilename)
+
+      writeFile(externChainPub.getPubKeyBytes, externalChainPubKeyFilename)
+      println("  " + externalChainPubKeyFilename)
+      writeFile(externChainPub.getChainCode, externalChainChaincodeFilename)
+      println("  " + externalChainChaincodeFilename)
+
 
     }
 
@@ -142,6 +160,7 @@ object Main {
     }
   }
 
+  /* Takes an array of bytes, returns an array of bytes */
   private def decrypt(input: Array[Byte], verbose: Boolean): Array[Byte] = try {
     val process = Runtime.getRuntime.exec( Array (GPG_EXECUTABLE, "--decrypt") )
     val os = process.getOutputStream()
@@ -177,6 +196,25 @@ object Main {
     }
   }
 
+  def writeEncryptedFile(bytes: Array[Byte], filename: String) {
+    try {
+      val process = Runtime.getRuntime.exec( Array (
+	GPG_EXECUTABLE, "--symmetric", "--cipher-algo", "AES256", "--output", filename
+      ) )
+      val os = process.getOutputStream()
+      os.write(bytes)
+      os.close()
+      process.waitFor match {
+	case 0 =>
+	case ec => throw new Exception(s"gpg returned error code $ec")
+      }
+    } catch {
+      case e: Exception => System.err.println(s"Failed to save encrypted file: ${e.getMessage}")
+      sys.exit(1)
+    }
+
+  }
+
   def writeFile(bytes: Array[Byte], filename: String) {
     try {
       val fos = new java.io.FileOutputStream(filename)
@@ -204,14 +242,16 @@ object Main {
     path.foreach(p => println(s"    path part $p is a ${p.getClass.getName}"))
   }
 
-  /** Some constants to make reading the DHK functions easier */
-  private final val PRIVATE = true
-  private final val PUBLIC = false
+  /* Some constants */
+  final val EMPTY_PATH = ImmutableList.of[ChildNumber]()
+  /* to make reading the HD functions easier */
+  private final val PRIVATE_DERIVATION = true
+  private final val PUBLIC_DERIVATION = false
   private final val RELATIVE = true
   private final val NOT_RELATIVE = false
   private final val CREATE_PARENT = true
   private final val DONT_CREATE_PARENT = false
-  private final val EXTERNAL = 0
-  private final val INTERNAL = 1
+  private final val EXTERNAL_CHAIN = 0
+  private final val INTERNAL_CHAIN = 1
 
 }

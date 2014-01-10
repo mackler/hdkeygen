@@ -2,6 +2,7 @@
 ~$
 ^\.ensime
 ^seed.*$
-^.+\.wallet$
-^externalMaster[\d]\..*$
+chainCode$
+privateKey$
+publicKey$
 trash

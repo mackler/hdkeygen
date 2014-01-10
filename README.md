@@ -39,15 +39,35 @@ be used by your less-secure machine consists of two components:
 An extended key can be specified by its path in the hierarchy.  An
 apostrophe in a path segment indicates a private derivation.
 
+Public Versus Private Derivation
+--------------------------------
+
+Each node in the key hierarchy other than the master root has a
+child-number relative to its parent represented as an unsigned integer
+within a range having the same maximum as a native signed integer,
+namely 2^31 - 1.  The bit that would otherwise be used to indicate the
+sign is instead used to indicate public (if 0) or private derivation
+(if 1) derivation.  Thus, each node can have children numbered from 0
+to 2147483647, inclusive.
+
+There is a security implication between using private versus public
+derivation, namely, as
+[the spec](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#security)
+says:
+
+> knowledge of the extended public key + a private key descending from
+> it is equivalent to knowing the extended private key (i.e., every
+> private and public key) in case public derivation is used.
+
 Generate Your Master Seed
 -------------------------
 
 You can create your master seed however you want, and you have many
 options.  The only requirement for using it with this program is that
-it be symmetrically encrypted with a cipher supported by `gpg`, such
+it be encrypted with a symmetric cipher supported by `gpg`, such
 as [Advanced Encryption
 Standard](](http://en.wikipedia.org/wiki/Advanced_Encryption_Standard)).
-Here is just one suggestion for how to do it.  This may or may not
+Here is a suggestion for how to do it.  This may or may not
 work depending on your operating system:
 
     dd if=/dev/random count=1 bs=32 | gpg --symmetric --cipher-algo AES256 --output seed.aes
@@ -55,31 +75,58 @@ work depending on your operating system:
 The above command-line will obtain 256 random bits, then ask you for a
 password, encrypt the bits using the password, then save the result in
 a file name `seed.aes`, which is where this program will look by
-default.  For more details on master seeds, see the
+default.
+
+Another way is to apply the SHA 256 hash function to a file of random
+data:
+
+    openssl dgst -sha256 -binary /var/log/messages | gpg --symmetric --cipher-algo AES256 --output seed.aes
+
+For more details on master seeds, see the
 [BIP32 document](https://en.bitcoin.it/wiki/BIP_0032#Master_key_generation).
 
 Using This Application
-----------------
+----------------------
 
 Once you have a Master Seed, you are ready to use this program to
-generate and write the file-pairs for any number of external HD public
-key chains.  Any one of these file-pairs can then be uploaded to and
-used as the master public key of an external address chain on your
-less-secure server machine.
+generate and write the key files for any number of HD wallet accounts.
+For each account, two file-pairs will be written, one pair containing
+the private key for the account (both external and internal chains),
+the other pair containing the public key for the external chain only.
+The public-external file-pair can then be uploaded to your less-secure
+server machine and used to generate Bitcoin addresses for receiving
+payments.  Meanwhile, on your more-secure machine you use the
+private-account file-pair to generate keys in the external and
+internal chains.  Keys in the external chain will have the private key
+data necessary for spending payments that people send to Bitcoin
+addresses generated on your less-secure server, while the internal
+chain can be used to generate change addresses.
 
-The names of the files generated are:
+The names of the files generated for each account are:
 
-    externalMaster<account>.publicKey
-    externalMaster<account>.chainCode
-	
-Where _account_ is the account position number you specify with the
-`--account` option when you run the program, which defaults to `0`.
+    account<account>.privateKey
+    account<account>.chaincode
+    externalChain<account>.publicKey
+    externalChain<account>.chaincode
 
-You can generate files for multiple keys by specifying the number of
-such keys by using the `--count` option, which defaults to `1`.
 
-What to do with the File Pair
+Where _account_ is the account number you specify with the `--account`
+option when you run the program, which defaults to `0`.
+
+The private key file will be encrypted using AES-256.  To be clear:
+the private key is the parent node of the external-chain public key,
+and the external-chain public key is child number zero of the private
+key.
+
+You can generate key-files for multiple accounts by specifying the number of
+such accounts using the `--count` option, which defaults to `1`.
+
+What to do with the Key Files
 -----------------------------
+
+For each account, you get four files, two for the more-secure machine,
+two for the less-secure machine.  In each file-pair, one file is the
+key bytes, the other is the extension "chain code" data.
 
 A public extended key can be deserialized from the generated file pair
 using the [bitcoinj](https://code.google.com/p/bitcoinj/) library like
@@ -88,7 +135,7 @@ this (in Scala):
     val rootKey: DeterministicKey =
 	  HDKeyDerivation.createMasterPubKeyFromBytes(pubKeyBytes,chainCode)
 
-Then construct a new hierarchy rooted at the deserialized key:
+Then construct a new chain rooted at the deserialized key:
 
     val hierarchy = new DeterministicHierarchy(rootKey)
 
@@ -115,6 +162,12 @@ address from each extended key:
 
     val newAddress: Address = childKey.toECKey.toAddress(params: NetworkParameters)
 
+Use the private key-pair similarly:
+
+    HDKeyDerivation.createMasterPrivKeyFromBytes(privKeyBytes, chainCode)
+	
+Then, the zeroth child of that key will be the external chain of the
+account, but including the private key data necessary for signing spends.
 
 More About the _Master Seed_
 ----------------------------
@@ -151,8 +204,8 @@ file-pair for account #0, then run with no command-line options:
 
     target/universal/stage/bin/hdkeygen
 
-If you want to generate file-pars for account numbers 3 and 4
-(omitting the path of the executable):
+If you want to generate key files for accounts 3 and 4 (omitting the
+path of the executable):
 
     hgkeygen --account 3 --count 2
 
@@ -174,4 +227,4 @@ compiling.
 `gpg` installed, you actually have `gpg` installed, because whatever
 is there, this program will try to execute it, and you could become
 the victim of a security violation if a malicious hacker installs a
-trojan horse in place of `gpg`.
+trojan horse where this program thinks the `gpg` executable is.
