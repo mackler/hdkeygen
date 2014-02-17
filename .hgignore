@@ -2,7 +2,7 @@
 ~$
 ^\.ensime
 ^seed.*$
-chainCode$
+chaincode$
 privateKey$
 publicKey$
 trash

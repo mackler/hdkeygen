@@ -88,6 +88,7 @@ object Main {
 	CREATE_PARENT,
 	new ChildNumber(accountNum, PRIVATE_DERIVATION)
       )
+      val accountFingerprint: String = bytesToLong(accountKey.getFingerprint).toString
 
       val externChainPriv: DeterministicKey = privHier.deriveChild(
 	accountKey.getChildNumberPath,
@@ -106,10 +107,13 @@ object Main {
 
       /* Everything generated, now write the files */
 
-      val accountPrivKeyFilename         = s"account$accountNum.privateKey"
-      val accountChaincodeFilename       = s"account$accountNum.chaincode"
-      val externalChainPubKeyFilename    = s"externalChain$accountNum.publicKey"
-      val externalChainChaincodeFilename = s"externalChain$accountNum.chaincode"
+      val fileTag = accountNum.toString + '-' + accountFingerprint + '.'
+      val accountPrefix = "account" + fileTag
+      val externalPrefix = "externalChain" + fileTag
+      val accountPrivKeyFilename         = accountPrefix + "privateKey"
+      val accountChaincodeFilename       = accountPrefix + "chaincode"
+      val externalChainPubKeyFilename    = externalPrefix + "publicKey"
+      val externalChainChaincodeFilename = externalPrefix + "chaincode"
 
       println(s"Writing files for account $accountNum; id is ${
 	Base58.encode(accountKey.getIdentifier)}")
@@ -123,10 +127,12 @@ object Main {
       println("  " + externalChainPubKeyFilename)
       writeFile(externChainPub.getChainCode, externalChainChaincodeFilename)
       println("  " + externalChainChaincodeFilename)
-
-
     }
+  }
 
+  private def bytesToLong(bytes: Array[Byte]): Long = {
+    require(bytes.length == 4)
+    java.nio.ByteBuffer.wrap(Array[Byte](0,0,0,0) ++ bytes).getLong
   }
 
   /** Read and decrypt an existing seed file, returning the unencrypted seed data */

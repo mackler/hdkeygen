@@ -103,14 +103,18 @@ chain can be used to generate change addresses.
 
 The names of the files generated for each account are:
 
-    account<account>.privateKey
-    account<account>.chaincode
-    externalChain<account>.publicKey
-    externalChain<account>.chaincode
+    account<serial>-<fingerprint>.privateKey
+    account<serial>-<fingerprint>.chaincode
+    externalChain<serial>-<fingerprint>.publicKey
+    externalChain<serial>-<fingerprint>.chaincode
 
 
-Where _account_ is the account number you specify with the `--account`
-option when you run the program, which defaults to `0`.
+Where _serial_ is the account number you specify with the `--account`
+option when you run the program, which defaults to `0`, and
+_fingerprint_ is the (probably) unique 4-byte fingerprint of the
+account node's HD key, represented as an **unsigned** integer. *Note:
+the fingerprint number in the names of the external chain files is
+that of the account key, not the external chain key.*
 
 The private key file will be encrypted using AES-256.  To be clear:
 the private key is the parent node of the external-chain public key,
@@ -142,14 +146,14 @@ Then you can use the `deriveChild` method to obtain extended keys in the
 chain:
 
     val emptyPath        = List[ChildNumber]() // path to the parent
-	val notRelative      = false               // whether the path is relative to the root path
-	val dontCreateParent = false               // whether to create the parent corresponding to path
+    val notRelative      = false               // whether the path is relative to the root path
+    val dontCreateParent = false               // whether to create the parent corresponding to path
     val childKey: DeterministicKey = hierarchy.deriveChild (
-	                                   emptyPath,
-				                       notRelative,
-				                       dontCreateParent,
-				                       new ChildNumber(childNumber: Int)
-                                     )
+      emptyPath,
+      notRelative,
+      dontCreateParent,
+      new ChildNumber(childNumber: Int)
+    )
 
 Alternatively, you can use the static `HDKeyDerivation.deriveChildKey` method:
 
