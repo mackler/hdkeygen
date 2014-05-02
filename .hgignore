@@ -1,7 +1,7 @@
 (^|/)target/
 ~$
 ^\.ensime
-^seed.*$
+(^|.+_)seed.*$
 chaincode$
 privateKey$
 publicKey$

@@ -84,6 +84,25 @@ data:
 For more details on master seeds, see the
 [BIP32 document](https://en.bitcoin.it/wiki/BIP_0032#Master_key_generation).
 
+Brain Wallet
+------------
+
+An alternative to generating a secret seed is the so-called brain
+wallet, where instead of encrypting your secret seed with a pass
+phrase, the pass-phrase _is_ the seed (effectively).  This means that
+as long as you don't forget the pass-phrase, you cannot "lose" the
+seed.  One disadvantage (of several) is that an attacker does not have
+to acquire your encrypted seed before attempting to crack your
+pass-phrase.
+
+Before using a brain wallet, be sure to [understand how to choose your
+phrase](https://en.bitcoin.it/wiki/Brainwallet) or else your bitcoins
+**will be stolen.**
+
+Use the `-b` switch to run this program in brain-wallet mode.  Your
+pass-phrase will be echoed, so make sure no bad guys watch as you
+type.
+
 Using This Application
 ----------------------
 

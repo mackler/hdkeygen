@@ -20,7 +20,8 @@ object Main {
     seedFile: File   = new File("seed.aes"),
     verbose: Boolean = false,
     debug: Boolean   = false,
-    seedData: String = ""
+    seedData: String = "",
+    brainWallet: Boolean = false
   )
 
   lazy val base32 = new CrockfordBase32
@@ -37,6 +38,8 @@ object Main {
       c.copy(count = x) } text("The number of keys to generate (default 1)")
     opt[File]('s', "seedfile") valueName("<file>") action { (x, c) =>
       c.copy(seedFile = x) } text("name of the file containing the encrypted seed")
+    opt[Unit]('b', "brain") action { (_, c) =>
+      c.copy(brainWallet = true) } text("brain wallet mode")
     opt[Unit]("verbose") action { (_, c) =>
       c.copy(verbose = true) } text("display what is happening")
     opt[Unit]("debug") hidden() action { (_, c) =>
@@ -50,16 +53,26 @@ object Main {
   def main(args: Array[String]) {
 
     // parser.parse returns Option[C]
-    val(firstAccount,count,seedFile,seedData,verbose,debug) =
+    val(firstAccount,count,seedFile,seedData,brainWallet,verbose,debug) =
     parser.parse(args, Config()) map { c =>
-      (c.firstAccount, c.count, c.seedFile, c.seedData, c.verbose, c.debug)
+      (c.firstAccount, c.count, c.seedFile, c.seedData, c.brainWallet, c.verbose, c.debug)
     } getOrElse {
       // arguments are bad; error message will have been displayed
       sys.exit(1)
     }
 
-    val seed: Array[Byte] = if (seedData.length > 0) {
-      if (verbose && seedFile.exists) println(s"Ignoring file ${seedFile.getName}")
+    val seed: Array[Byte] = if (brainWallet) {
+      if (seedData.length > 0) System.err.println("Warning: ignoring seed data")
+      if (seedFile.exists) System.err.println(s"Warning: ignoring file ${seedFile.getName}")
+      print("Brain-wallet phrase (will echo): ")
+      val phrase = (new java.io.BufferedReader(
+        new java.io.InputStreamReader(System.in,java.nio.charset.Charset.forName("UTF-8"))
+      )).readLine()
+      val md = java.security.MessageDigest.getInstance("SHA-256")
+      md.update(phrase.getBytes("UTF-8"))
+      md.digest
+    } else if (seedData.length > 0) {
+      if (seedFile.exists) System.err.println(s"Warning: ignoring file ${seedFile.getName}")
       val encryptedBytes = base32.decode(seedData.replaceAll("[\\s]",""))
       decrypt(encryptedBytes, verbose)
     } else if (! seedFile.exists) {

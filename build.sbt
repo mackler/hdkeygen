@@ -19,15 +19,10 @@ scalacOptions in Compile ++= Seq(
   "-unchecked"
 )
 
-resolvers ++= Seq(
-  "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
-  "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
-)
-
 libraryDependencies ++= Seq(
-  "org.slf4j"        % "slf4j-simple" % "1.7.5",
-  "org.slf4j"        % "slf4j-api"    % "1.7.5",
-  "com.google"       % "bitcoinj"     % "0.11-SNAPSHOT",
+  "org.slf4j"        % "slf4j-simple" % "1.7.7",
+  "org.slf4j"        % "slf4j-api"    % "1.7.7",
+  "com.google"       % "bitcoinj"     % "0.11.2",
   "com.github.scopt" % "scopt_2.10" % "3.2.0"
 )
 
