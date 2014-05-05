@@ -2,7 +2,6 @@
 ~$
 ^\.ensime
 (^|.+_)seed.*$
-chaincode$
-privateKey$
-publicKey$
+aes$
+hdk$
 trash
