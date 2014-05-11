@@ -1,3 +1,7 @@
+**Note** this code is in flux as the new HD features of bitcoinj are
+  being rolled out.  This documentation may not be accurate.  Please
+  check the paths of any keys you generate before using.
+
 hdkeygen
 ========
 

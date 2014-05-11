@@ -21,7 +21,7 @@ object Main {
   final val GPG_EXECUTABLE = "/usr/bin/gpg"
 
   case class Config(
-    firstAccount: Int     = 0,
+    firstAccount: Int = 0,
     count: Int       = 1,
     seedFile: File   = new File("seed.aes"),
     verbose: Boolean = false,
@@ -112,14 +112,16 @@ object Main {
 
     val masterPrivateKey: DeterministicKey = HDKeyDerivation createMasterPrivateKey seed
     if(debug) dumpKey(masterPrivateKey, "Master Node:")
-    if(verbose) println("Master node " + masterPrivateKey.getPathAsString +
-			" has fingerprint " +
-                        bytesToLong(masterPrivateKey.getFingerprint).toString )
+    else if(verbose) println {
+      "Master node " + masterPrivateKey.getPathAsString +
+      " has fingerprint " +
+      bytesToLong(masterPrivateKey.getFingerprint).toString
+    }
 
     val privHier = new DeterministicHierarchy(masterPrivateKey)
 
     /* Now a loop to generate the files for the user.  One iteration per account.
-     * The account-numbers come from the command-line option, defaulting to 1
+     * The account-numbers come from the command-line option, defaulting to 0.
      */
     (firstAccount to ( firstAccount + (count - 1) ) ) foreach { accountNum =>
       val accountKey: DeterministicKey = privHier.deriveChild(
@@ -130,43 +132,38 @@ object Main {
       )
       val accountFingerprint: String = bytesToLong(accountKey.getFingerprint).toString
 
-      // This is the external chain public key data the web server will have:
-      val externChainPub: DeterministicKey = privHier.deriveChild(
+      /* This is the external chain public key data the web server will have:
+       * Might become obsolete if bitcoinj only deals with account keys. */
+      val externChainPriv: DeterministicKey = privHier.deriveChild(
 	accountKey.getPath,
 	NOT_RELATIVE,
 	CREATE_PARENT,
 	new ChildNumber(EXTERNAL_CHAIN, NORMAL_DERIVATION)
-      ).getPubOnly
+      )
+      val externChainPub: DeterministicKey = externChainPriv.getPubOnly
+      // to be removed I hope
+      val pathless = new DeterministicKey(
+        com.google.common.collect.ImmutableList.of(),
+        externChainPriv.getChainCode(),
+        externChainPriv.getPubKeyPoint(), null, null)
 
       if (debug) {
-        dumpKey(accountKey, "Account private key")
-        dumpKey(externChainPub, "External chain key")
+        dumpKey(accountKey, s"Account $accountNum")
+/*        dumpKey(externChainPriv, "External chain key with private")
+        dumpKey(externChainPub, "External chain key public")
+        dumpKey(pathless, "External chain key without path") */
       }
 
       /* Everything generated, now write the files */
 
       val fileTag = accountNum.toString + '-' + accountFingerprint + '_'
-/*      val accountPrefix = "account" + fileTag
-      val externalPrefix = "externalChain" + fileTag
-      val accountPrivKeyFilename         = accountPrefix + "privateKey"
-      val accountChaincodeFilename       = accountPrefix + "chaincode"
-      val externalChainPubKeyFilename    = externalPrefix + "publicKey"
-      val externalChainChaincodeFilename = externalPrefix + "chaincode" */
       val accountPrivFilename = "account" + fileTag + "priv.aes"
+      val accountPubFilename = "account" + fileTag + "pub.hdk"
+      val accountPubB58Filename = "account" + fileTag + "pub.b58"
       val chainPubFilename = "externalChain" + fileTag + "pub.hdk"
 
       println(s"Writing files for account $accountNum; fingerprint is ${
 	bytesToLong(accountKey.getFingerprint).toString}")
-
-/*      writeEncryptedFile(accountKey.getPrivKeyBytes, accountPrivKeyFilename)
-      println("  " + accountPrivKeyFilename)
-      writeFile(accountKey.getChainCode, accountChaincodeFilename)
-      println("  " + accountChaincodeFilename)
-
-      writeFile(externChainPub.getPubKey, externalChainPubKeyFilename)
-      println("  " + externalChainPubKeyFilename)
-      writeFile(externChainPub.getChainCode, externalChainChaincodeFilename)
-      println("  " + externalChainChaincodeFilename) */
 
       /* If BIP-38 is ever implemented in bitcoinj, we might use that instead of GPG */
       writeEncryptedFile (
@@ -174,8 +171,13 @@ object Main {
         filename = accountPrivFilename
       )
       println("  " + accountPrivFilename)
-      writeFile(externChainPub.serializePublic, chainPubFilename)
-      println("  " + chainPubFilename)
+
+      writeFile(accountKey.serializePublic, accountPubFilename)
+      println("  " + accountPubFilename)
+      writeFile(accountKey.serializePubB58.getBytes, accountPubB58Filename)
+      println("  " + accountPubB58Filename)
+/*      writeFile(externChainPriv.serializePubB58.getBytes, chainPubFilename)
+      println("  " + chainPubFilename) */
     }
   }
 
@@ -287,12 +289,13 @@ object Main {
     println(label)
     println(s"  $key")
     println(s"  Fingerprint: ${bytesToLong(key.getFingerprint).toLong}")
-    println(s"  pub: ${key.serializePubB58}")
-    if (key.hasPrivKey) println(s"  priv: ${key.serializePrivB58}")
-    else println("  no private key")
+//    println(s"  pub: ${key.serializePubB58}")
+//    if (key.hasPrivKey) println(s"  priv: ${key.serializePrivB58}")
+    print { if (key.hasPrivKey) "  has a" else "  no" }
+    println(" private key")
 
-    val path = key.getPath
-    println(s"  path is ${key.getPathAsString}")
+/*    val path = key.getPath
+    println(s"  path is ${key.getPathAsString}") */
   }
 
   /* Some constants */
