@@ -1,10 +1,10 @@
 package org.mackler.hdkeygen
 
-import com.google.bitcoin
-import bitcoin.core.Base58
-import bitcoin.crypto.{
+import org.bitcoinj
+import bitcoinj.core.Base58
+import bitcoinj.crypto.{
   HDKeyDerivation, DeterministicHierarchy,
-  DeterministicKey, ChildNumber, KeyCrypterScrypt
+  DeterministicKey, ChildNumber, KeyCrypterScrypt, MnemonicCode
 }
 
 import org.spongycastle.crypto.params.KeyParameter
@@ -35,7 +35,7 @@ object Main {
   final val SEED_COMMAND =
     "  dd if=/dev/random count=1 bs=32 | gpg --symmetric --cipher-algo AES256 --output seed.aes"
 
-  // for parsing command-line sitches and options:
+  // for parsing command-line switches and options:
   val parser = new scopt.OptionParser[Config](BuildInfo.name) {
     head("Hierarchical determinstic wallet key generator", BuildInfo.version)
     opt[Int]('a', "account") action { (x, c) =>
@@ -60,7 +60,7 @@ object Main {
 
     /* First we parse the command-line.
      * parser.parse returns an Option[C] */
-    val(firstAccount,count,seedFile,seedData,brainWallet,verbose,debug) =
+    val(firstAccount, count, seedFile, seedData, brainWallet, verbose, debug) =
     parser.parse(args, Config()) map { c =>
       (c.firstAccount, c.count, c.seedFile, c.seedData, c.brainWallet, c.verbose, c.debug)
     } getOrElse {
@@ -202,10 +202,14 @@ object Main {
       fis.close()
 
       val process = Runtime.getRuntime.exec( Array (GPG_EXECUTABLE, "--decrypt", file.getName) )
-      val seed = readOutput(process, verbose)
-      if(debug) println(s"Seed data (NOT encrypted): ${base32.encodeToString(seed)}")
+      val seed: Array[Byte] = readOutput(process, verbose)
+      if(debug) {
+        println(s"Seed data (NOT encrypted): ${base32.encodeToString(seed)}")
+        val mc = new MnemonicCode
+        println("Seed mnemonic:\n" + mc.toMnemonic(seed).mkString(" "))
+      }
 
-      println("Encrypted seed data:\n" +
+      println("Encrypted seed data (Crockford Base 32):\n" +
 	base32.encodeToString(encrypted).
 	grouped(32).toList.map(r => r.grouped(4).toList.mkString("-")).mkString("\n")
       )
